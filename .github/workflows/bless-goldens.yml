@@ -1,0 +1,43 @@
+# One-off: record the robustness goldens on Linux (docs/robustness.md) for a branch pushed as
+# bless/<name>. Lives only on bless/* branches of the fork; it is never part of a pull request.
+name: Record robustness goldens
+
+on:
+  push:
+    branches: ["bless/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  bless:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install the libraries the test jobs install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
+      - name: Build the engine tests
+        run: cargo test --profile ci -p solidcraft-engine --lib --no-run
+      - name: Record the goldens
+        env:
+          ROBUSTNESS_GOLDENS_BLESS: ${{ vars.BLESS_REASON || '#2707 inspect.measure measures a small round as finely on a large part as on a small one (its radius read from the exact surfaces, and an angle limit where the chord tolerance cannot come down to it), so seeds with small rounds measure a slightly different volume and area' }}
+        run: |
+          rustc --version
+          cargo test --profile ci -p solidcraft-engine --lib robustness_goldens:: 2>&1 | tee bless.log || true
+      - name: Show what changed
+        run: |
+          git diff --stat
+          git diff > goldens.diff
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: goldens
+          path: |
+            tests/robustness/goldens.json
+            goldens.diff
+            bless.log
