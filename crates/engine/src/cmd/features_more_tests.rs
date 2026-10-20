@@ -1357,8 +1357,9 @@ fn fillets_on_tapered_bosses_saved_before_still_find_their_edges() {
         let r = s.model.result(id).unwrap();
         assert!(r.error.is_none() && r.warning.is_none(), "{name}: {:?} {:?}", r.error, r.warning);
     }
-    // The build that saved it measured 69454.885209 mm³.
-    assert!((volume - 69454.8852092132).abs() < 1e-3, "{volume}");
+    // The build that saved it measured 69454.885209 mm³ (measured a little more finely since
+    // #2707: 69454.887097).
+    assert!((volume - 69454.8852092132).abs() < 69454.885 * 1e-7, "{volume}");
     assert_eq!(s.world_state().bodies.len(), 1);
 }
 

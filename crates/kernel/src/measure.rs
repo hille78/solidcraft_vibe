@@ -125,12 +125,20 @@ fn mass(b: &Body, topology: bool) -> Result<(MassMeasure, Option<Mesh>)> {
     let coarse_tol = (size * 1e-3).max(1e-3);
     let coarse = b.tessellate_with(coarse_tol, true)?;
     // Chord error relative to a radius sets the volume error: keep it near 3e-4 of the
-    // smallest radius (thin tubes, small fillets).
-    let tight = min_edge_radius(&coarse).map(|r| r * 3e-4).unwrap_or(f64::INFINITY);
+    // smallest radius (thin tubes, small fillets). The radius comes from the exact surfaces as
+    // well as from the coarse mesh's edges, which on a large body draw a small round with too
+    // few points to show its curve (#2707).
+    let radius = [min_edge_radius(&coarse), crate::boolean_guard::smallest_radius(b)].into_iter().flatten().fold(f64::INFINITY, f64::min);
+    let tight = radius * 3e-4;
     let fine_tol = (size * 5e-5).min(tight).max(size * 5e-6).max(1e-4);
-    let mut jobs = vec![(fine_tol, true), ((fine_tol * 5.0).max(2e-4), true)];
+    // Where the body is too large for the chord tolerance to come down to `tight`, the facets
+    // also turn no more than they would at `tight` on that radius (sag r·a²/8 = 3e-4·r): a small
+    // round is then measured as finely on a large part as on a small one, while the part's
+    // large faces keep the coarser chord.
+    let angle = if fine_tol > tight * 1.01 { (8.0 * 3e-4f64).sqrt() } else { f64::INFINITY };
+    let mut jobs = vec![(fine_tol, angle, true), ((fine_tol * 5.0).max(2e-4), angle * 5f64.sqrt(), true)];
     if topology {
-        jobs.push((coarse_tol, false));
+        jobs.push((coarse_tol, f64::INFINITY, false));
     }
     // Independent tessellations of one body: each on its own thread, the calling thread's
     // profile counting their wall time once as tessellation. Not from inside a worker pool: a
@@ -141,7 +149,7 @@ fn mass(b: &Body, topology: bool) -> Result<(MassMeasure, Option<Mesh>)> {
     #[cfg(target_arch = "wasm32")]
     let threads = 1;
     let made = crate::profile::timed(crate::profile::Kind::Tessellate, || {
-        crate::par::map_on_threads(&jobs, threads, |&(tol, refine)| b.tessellate_with(tol, refine))
+        crate::par::map_on_threads(&jobs, threads, |&(tol, angle, refine)| b.tessellate_within(tol, angle, refine))
     });
     let mut made = made.into_iter().map(|m| m.unwrap_or_else(|| Err(crate::KernelError::Internal("tessellation failed".into()))));
     let missing = || crate::KernelError::Internal("tessellation missing".into());

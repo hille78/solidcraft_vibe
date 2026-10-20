@@ -1182,7 +1182,7 @@ impl Body {
 
     /// [`Body::tessellate_with`] in which no facet turns more than `angle` radians either
     /// (infinite: the chord tolerance alone).
-    fn tessellate_within(&self, tol: f64, angle: f64, refine: bool) -> Result<Mesh> {
+    pub(crate) fn tessellate_within(&self, tol: f64, angle: f64, refine: bool) -> Result<Mesh> {
         let mesh = || crate::profile::timed(crate::profile::Kind::Tessellate, || self.tessellate_within_untimed(tol, angle, refine));
         let memo = self.meshes.as_ref().filter(|m| std::sync::Arc::ptr_eq(&m.solid, &self.solid));
         // Held while meshing: threads asking for the same mesh wait for it rather than make it too.

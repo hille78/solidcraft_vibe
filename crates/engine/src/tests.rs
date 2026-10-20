@@ -3791,3 +3791,22 @@ fn a_tapered_side_drawn_in_two_collinear_pieces_is_one_face() {
     let m = run(&mut s, "inspect.measure", json!({}));
     assert_eq!(m["bodies"][0]["kernel"]["faces"], 6, "{m}");
 }
+
+/// #2707: a 1 mm round along a 100 mm edge removes (1 - π/4) × 100 mm³ whatever the size of the
+/// rest of the part; the measured volume follows the round, not the part's overall size.
+#[test]
+fn round_volume_does_not_depend_on_the_part_size() {
+    let exact = (1.0 - PI / 4.0) * 100.0;
+    let mut first = None;
+    for depth in [100.0, 300.0, 500.0, 1000.0] {
+        let mut s = Session::default();
+        run(&mut s, "solid.box", json!({"length": 100, "width": depth, "height": 10}));
+        let plain = volume(&mut s);
+        run(&mut s, "solid.fillet", json!({"edges": [[50, depth, 10]], "radius": 1}));
+        let removed = plain - volume(&mut s);
+        // It read 21.49 on the 100 mm plate and 23.47 (+9 %) from 500 mm on.
+        assert!(rel(removed, exact) < 1e-3, "plate 100 × {depth}: the round removes {removed}, exact {exact}");
+        let first = *first.get_or_insert(removed);
+        assert!(rel(removed, first) < 1e-4, "plate 100 × {depth}: the round removes {removed}, on the 100 mm plate {first}");
+    }
+}

@@ -108,7 +108,7 @@ fn stray_point(from: &Mesh, onto: &Near, region: &Aabb3) -> Option<Vec3> {
 }
 
 /// The smallest radius of a body's cylinders, spheres and tori (their tubes).
-fn smallest_radius(body: &Body) -> Option<f64> {
+pub(crate) fn smallest_radius(body: &Body) -> Option<f64> {
     use crate::surface_kind::{FaceSurface, face_surface};
     (0..body.face_count())
         .filter_map(|i| match face_surface(body, i)? {
